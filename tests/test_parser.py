@@ -2,6 +2,7 @@ from parser.parser import Chromatogram
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 
 
 def test_parse_file():
@@ -25,5 +26,5 @@ def test_parse_file():
 
     # Check first row
     assert chrom.raw_data.iloc[0]["Time (min)"] == 0.0
-    # assert chrom.raw_data.iloc[0]['Step (s)'] == 0.5
+    assert np.isnan(chrom.raw_data.iloc[0]["Step (s)"])
     assert chrom.raw_data.iloc[0]["Value (EU)"] == 0.0

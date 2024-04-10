@@ -16,19 +16,20 @@ class Chromatogram:
             "Injection Information": {},
             "Chromatogram Data Information": {},
             "Signal Parameter Information": {},
+            "Other": {}
         }
         self.raw_data: pd.DataFrame = pd.DataFrame()
         self._parse_file(filepath)
 
     def _parse_file(self, filepath: Path):
         with filepath.open("r") as file:
-            content = file.read()
+            content = file.read().strip()
 
         metadata, data = content.split("Chromatogram Data:\n")
-        current_section = "Other"
+        current_section = "Other"  # TODO What if it is in the middle
 
         for line in metadata.split("\n"):
-            line = line.strip()
+            line = line
             if line in [
                 "Injection Information:",
                 "Chromatogram Data Information:",
@@ -39,10 +40,15 @@ class Chromatogram:
                 key, value = line.split("\t")
                 self.metadata[current_section][key] = value
 
-        self.raw_data = pd.read_csv(StringIO(data), sep="\t")
+        self.raw_data = pd.read_csv(StringIO(data), sep="\t", na_values='n.a.')  # TODO check other NaN
 
     def detect_peaks(self) -> None:
         pass
 
     def calculate_elution_volume(self) -> None:
         pass
+
+
+if __name__ == '__main__':
+    filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
+    chrom = Chromatogram(filepath)
