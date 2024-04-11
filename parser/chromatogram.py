@@ -4,7 +4,7 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
-from .peak import Peak
+from peak import Peak
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
@@ -55,7 +55,7 @@ class Chromatogram:
             [time[0], time[-1]], [values[0], values[-1]], fill_value="extrapolate"
         )
 
-    def detect_peaks(self):
+    def detect_peaks(self, baseline: str = "local"):
         """
         Detects peaks and calculates their corrected heights based on local baseline correction.
 
@@ -77,21 +77,23 @@ class Chromatogram:
         time = self.raw_data["Time (min)"].to_numpy()
 
         peaks, _ = find_peaks(values)
-
         for peak in peaks:
             left_thresh_idx = peak - 1 if peak > 0 else peak
             right_thresh_idx = peak + 1 if peak < len(values) - 1 else peak
 
             left_thresh = time[left_thresh_idx]
             right_thresh = time[right_thresh_idx]
+            peak_baseline = 0
 
-            # peak_baseline = self.baseline[peak]  # for global baseline
-            baseline_values = interp1d(
-                [left_thresh, right_thresh],
-                [values[left_thresh_idx], values[right_thresh_idx]],
-                fill_value="extrapolate",
-            )
-            peak_baseline = baseline_values(time[peak])
+            if baseline == "global":
+                peak_baseline = self.baseline(time[peak])
+            elif baseline == "local":
+                baseline_values = interp1d(
+                    [left_thresh, right_thresh],
+                    [values[left_thresh_idx], values[right_thresh_idx]],
+                    fill_value="extrapolate",
+                )
+                peak_baseline = baseline_values(time[peak])
 
             height_corrected = values[peak] - peak_baseline
 
@@ -106,4 +108,8 @@ class Chromatogram:
 if __name__ == "__main__":
     filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
     chrom = Chromatogram(filepath)
+    chrom.detect_peaks("local")
+    peaks1 = chrom.peaks
+    chrom.detect_peaks("global")
+    peaks2 = chrom.peaks
     print()
