@@ -1,4 +1,4 @@
-from parser.parser import Chromatogram
+from parser.chromatogram import Chromatogram
 from pathlib import Path
 
 import pandas as pd
