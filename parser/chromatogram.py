@@ -5,6 +5,7 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 from peak import Peak
+from scipy.integrate import simps
 from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
@@ -25,6 +26,7 @@ class Chromatogram:
         self.raw_data: pd.DataFrame = pd.DataFrame()
         self.peaks: list[Peak] = []
         self.baseline: np.ndarray = np.array([])
+        self.flowrate: float = 0
         self._parse_file(filepath)
 
     def _parse_file(self, filepath: Path):
@@ -35,7 +37,6 @@ class Chromatogram:
         current_section = "Other"  # TODO What if it is in the middle
 
         for line in metadata.split("\n"):
-            line = line
             if line in [
                 "Injection Information:",
                 "Chromatogram Data Information:",
@@ -78,27 +79,39 @@ class Chromatogram:
 
         peaks, _ = find_peaks(values)
         for peak in peaks:
-            left_thresh_idx = peak - 1 if peak > 0 else peak
-            right_thresh_idx = peak + 1 if peak < len(values) - 1 else peak
+            left_thresh_idx = max(peak - 1, 0)
+            right_thresh_idx = min(peak + 1, len(values) - 1)
 
-            left_thresh = time[left_thresh_idx]
-            right_thresh = time[right_thresh_idx]
             peak_baseline = 0
+            retention_time = time[peak]
+            elution_volume = retention_time * self.flow_rate
 
             if baseline == "global":
-                peak_baseline = self.baseline(time[peak])
+                peak_baseline = self.baseline(retention_time)
             elif baseline == "local":
                 baseline_values = interp1d(
-                    [left_thresh, right_thresh],
+                    [time[left_thresh_idx], time[right_thresh_idx]],
                     [values[left_thresh_idx], values[right_thresh_idx]],
                     fill_value="extrapolate",
                 )
-                peak_baseline = baseline_values(time[peak])
+                peak_baseline = baseline_values(retention_time)
 
             height_corrected = values[peak] - peak_baseline
+            peak_area = simps(
+                y=values[left_thresh_idx:right_thresh_idx + 1] - peak_baseline,
+                x=time[left_thresh_idx:right_thresh_idx + 1],
+            )
 
             self.peaks.append(
-                Peak(left_thresh, right_thresh, height_corrected, peak_baseline)
+                Peak(
+                    time[left_thresh_idx],
+                    time[right_thresh_idx],
+                    height_corrected,
+                    peak_baseline,
+                    retention_time,
+                    elution_volume,
+                    peak_area,
+                )
             )
 
     def calculate_elution_volume(self) -> None:
