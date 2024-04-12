@@ -26,7 +26,7 @@ class Chromatogram:
         self.raw_data: pd.DataFrame = pd.DataFrame()
         self.peaks: list[Peak] = []
         self.baseline: np.ndarray = np.array([])
-        self.flowrate: float = 0
+        self.flowrate: float = 0.4  # Assume we're using ACQUITY UPLC FLR
         self._parse_file(filepath)
 
     def _parse_file(self, filepath: Path):
