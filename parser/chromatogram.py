@@ -11,7 +11,7 @@ from scipy.signal import find_peaks
 
 
 class Chromatogram:
-    def __init__(self, filepath: Path):
+    def __init__(self, filepath: Path, flow_rate: float, min_height: float = 0):
         if not isinstance(filepath, Path):
             raise ValueError("filepath must be a pathlib.Path object")
         if not filepath.is_file():
@@ -26,22 +26,25 @@ class Chromatogram:
         self.raw_data: pd.DataFrame = pd.DataFrame()
         self.peaks: list[Peak] = []
         self.baseline: np.ndarray = np.array([])
-        self.flowrate: float = 0.4  # Assume we're using ACQUITY UPLC FLR
+        self.flow_rate: float = flow_rate
         self._parse_file(filepath)
 
     def _parse_file(self, filepath: Path):
-        with filepath.open("r") as file:
-            content = file.read().strip()
+        try:
+            with filepath.open("r") as file:
+                content = file.read().strip()
+        except IOError as e:
+            raise FileNotFoundError(f"Error reading file: {e}")
 
-        metadata, data = content.split("Chromatogram Data:\n")
+        try:
+            metadata, data = content.split("Chromatogram Data:\n")
+        except ValueError:
+            raise ValueError("File format incorrect or 'Chromatogram Data:' section missing")
+
         current_section = "Other"  # TODO What if it is in the middle
 
         for line in metadata.split("\n"):
-            if line in [
-                "Injection Information:",
-                "Chromatogram Data Information:",
-                "Signal Parameter Information:",
-            ]:
+            if line.endswith(":"):
                 current_section = line[:-1]
             elif line:
                 key, value = line.split("\t")
@@ -50,8 +53,13 @@ class Chromatogram:
         self.raw_data = pd.read_csv(
             StringIO(data), sep="\t", na_values="n.a."
         )  # TODO check other NaN
-        time = self.raw_data["Time (min)"].to_numpy()
-        values = self.raw_data["Value (EU)"].to_numpy()
+
+        try:
+            time = self.raw_data["Time (min)"].to_numpy()
+            values = self.raw_data["Value (EU)"].to_numpy()
+        except KeyError as e:
+            raise ValueError(f"Expected column missing from the data: {e}")
+
         self.baseline = interp1d(
             [time[0], time[-1]], [values[0], values[-1]], fill_value="extrapolate"
         )
@@ -120,7 +128,7 @@ class Chromatogram:
 
 if __name__ == "__main__":
     filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
-    chrom = Chromatogram(filepath)
+    chrom = Chromatogram(filepath, 0.4, 1)
     chrom.detect_peaks("local")
     peaks1 = chrom.peaks
     chrom.detect_peaks("global")
