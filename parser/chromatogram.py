@@ -6,12 +6,15 @@ import numpy as np
 import pandas as pd
 from peak import Peak
 from scipy.integrate import simps
-from scipy.interpolate import interp1d
 from scipy.signal import find_peaks
 
 
+def calculate_elution_volume(peak: Peak, flow_rate: float):
+    return peak.retention_time * flow_rate
+
+
 class Chromatogram:
-    def __init__(self, filepath: Path, flow_rate: float, min_height: float = 0):
+    def __init__(self, filepath: Path):
         if not isinstance(filepath, Path):
             raise ValueError("filepath must be a pathlib.Path object")
         if not filepath.is_file():
@@ -25,11 +28,24 @@ class Chromatogram:
         }
         self.raw_data: pd.DataFrame = pd.DataFrame()
         self.peaks: list[Peak] = []
-        self.baseline: np.ndarray = np.array([])
-        self.flow_rate: float = flow_rate
         self._parse_file(filepath)
 
     def _parse_file(self, filepath: Path):
+        """
+        Parses the file at the given path to extract chromatogram data and metadata.
+
+        This method reads a text file containing metadata and raw chromatogram data,
+        separates the content into metadata and data sections, parses the metadata
+        for different categories, and converts the raw data section into a pandas DataFrame.
+        It also initializes the baseline interpolation using the first and last data points.
+
+        :param filepath: Path object pointing to the file to be parsed.
+        :type filepath: Path
+
+        :raises FileNotFoundError: If the file cannot be found or read.
+        :raises ValueError: If the file content does not contain expected sections or format.
+        :raises KeyError: If essential data columns are missing in the chromatogram data section.
+        """
         try:
             with filepath.open("r") as file:
                 content = file.read().strip()
@@ -55,58 +71,28 @@ class Chromatogram:
         )  # TODO check other NaN
 
         try:
-            time = self.raw_data["Time (min)"].to_numpy()
-            values = self.raw_data["Value (EU)"].to_numpy()
+            self.raw_data["Time (min)"].to_numpy()
+            self.raw_data["Value (EU)"].to_numpy()
         except KeyError as e:
             raise ValueError(f"Expected column missing from the data: {e}")
 
-        self.baseline = interp1d(
-            [time[0], time[-1]], [values[0], values[-1]], fill_value="extrapolate"
-        )
-
-    def detect_peaks(self, baseline: str = "local"):
-        """
-        Detects peaks and calculates their corrected heights based on local baseline correction.
-
-        The method detects peaks in the 'Value (EU)' column, correcting each peak's height by subtracting the
-        baseline value at its position. Peaks are returned as a list of `Peak` objects, each containing detailed peak
-        information.
-
-        :return: A list of `Peak` objects, each representing a detected peak with properties for left threshold,
-        right threshold, corrected height, and baseline value. :rtype: list[Peak]
-
-        **Example**::
-
-            chromatogram = Chromatogram(filepath)
-            peaks = chromatogram.detect_peaks()
-            for peak in peaks:
-                print(peak)
-        """
+    def detect_peaks(self, degree: int = 3, min_height: float = 0):
         values = self.raw_data["Value (EU)"].to_numpy()
         time = self.raw_data["Time (min)"].to_numpy()
+
+        coeffs = np.polyfit(time, values, deg=degree)
+        baseline_func = np.poly1d(coeffs)
+        self.baseline = baseline_func(time)
 
         peaks, _ = find_peaks(values)
         for peak in peaks:
             left_thresh_idx = max(peak - 1, 0)
             right_thresh_idx = min(peak + 1, len(values) - 1)
-
-            peak_baseline = 0
             retention_time = time[peak]
-            elution_volume = retention_time * self.flow_rate
 
-            if baseline == "global":
-                peak_baseline = self.baseline(retention_time)
-            elif baseline == "local":
-                baseline_values = interp1d(
-                    [time[left_thresh_idx], time[right_thresh_idx]],
-                    [values[left_thresh_idx], values[right_thresh_idx]],
-                    fill_value="extrapolate",
-                )
-                peak_baseline = baseline_values(retention_time)
-
-            height_corrected = values[peak] - peak_baseline
+            height_corrected = values[peak] - self.baseline[retention_time]
             peak_area = simps(
-                y=values[left_thresh_idx:right_thresh_idx + 1] - peak_baseline,
+                y=values[left_thresh_idx:right_thresh_idx + 1] - self.baseline[retention_time],
                 x=time[left_thresh_idx:right_thresh_idx + 1],
             )
 
@@ -115,15 +101,17 @@ class Chromatogram:
                     time[left_thresh_idx],
                     time[right_thresh_idx],
                     height_corrected,
-                    peak_baseline,
-                    retention_time,
-                    elution_volume,
-                    peak_area,
+                    retention_time
                 )
             )
 
-    def calculate_elution_volume(self) -> None:
-        pass
+    def calculate_peak_area(self, peak: Peak):
+        values = self.raw_data["Value (EU)"].to_numpy()
+        time = self.raw_data["Time (min)"].to_numpy()
+        return simps(
+                y=values[left_thresh_idx:right_thresh_idx + 1] - self.baseline[peak.retention_time],
+                x=time[left_thresh_idx:right_thresh_idx + 1],
+            )
 
 
 if __name__ == "__main__":
