@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 from peak import Peak
 from scipy.integrate import simps
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, savgol_filter
 
 
 def calculate_elution_volume(peak: Peak, flow_rate: float):
@@ -76,49 +76,59 @@ class Chromatogram:
         except KeyError as e:
             raise ValueError(f"Expected column missing from the data: {e}")
 
-    def detect_peaks(self, degree: int = 3, min_height: float = 0):
+    def detect_peaks(self, degree: int = 3, min_height: float = None):
         values = self.raw_data["Value (EU)"].to_numpy()
         time = self.raw_data["Time (min)"].to_numpy()
 
+        # Polynomial Fit for Detrending
         coeffs = np.polyfit(time, values, deg=degree)
         baseline_func = np.poly1d(coeffs)
-        self.baseline = baseline_func(time)
+        baseline = baseline_func(time)
 
-        peaks, _ = find_peaks(values)
-        for peak in peaks:
-            left_thresh_idx = max(peak - 1, 0)
-            right_thresh_idx = min(peak + 1, len(values) - 1)
+        # Detrending the data by subtracting the fitted polynomial baseline
+        detrended_data = values - baseline
+
+        # Apply Savitzky-Golay filter to smooth the detrended data
+        values = savgol_filter(detrended_data, window_length=51, polyorder=3)
+
+        if min_height is None:
+            # Setting minimum height to be more than one standard deviation above the mean to focus on significant peaks
+            mean_emission = values.mean()
+            std_emission = values.std()
+            min_height = mean_emission + std_emission
+
+        peaks, properties = find_peaks(values, height=min_height, prominence=0.1)
+
+        for i, peak in enumerate(peaks):
+            # Get peak height
+            peak_height = properties['peak_heights'][i]
             retention_time = time[peak]
 
-            height_corrected = values[peak] - self.baseline[retention_time]
-            peak_area = simps(
-                y=values[left_thresh_idx:right_thresh_idx + 1] - self.baseline[retention_time],
-                x=time[left_thresh_idx:right_thresh_idx + 1],
-            )
+            # Find the left and right base indices
+            left_base_idx = properties['left_bases'][i]
+            right_base_idx = properties['right_bases'][i]
 
             self.peaks.append(
                 Peak(
-                    time[left_thresh_idx],
-                    time[right_thresh_idx],
-                    height_corrected,
+                    time[left_base_idx],
+                    time[right_base_idx],
+                    peak_height,
                     retention_time
                 )
             )
 
-    def calculate_peak_area(self, peak: Peak):
-        values = self.raw_data["Value (EU)"].to_numpy()
-        time = self.raw_data["Time (min)"].to_numpy()
-        return simps(
-                y=values[left_thresh_idx:right_thresh_idx + 1] - self.baseline[peak.retention_time],
-                x=time[left_thresh_idx:right_thresh_idx + 1],
-            )
+    # def calculate_peak_area(self, peak: Peak):
+    #     values = self.raw_data["Value (EU)"].to_numpy()
+    #     time = self.raw_data["Time (min)"].to_numpy()
+    #     return simps(
+    #             y=values[left_thresh_idx:right_thresh_idx + 1] - self.baseline[peak.retention_time],
+    #             x=time[left_thresh_idx:right_thresh_idx + 1],
+    #         )
 
 
 if __name__ == "__main__":
     filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
-    chrom = Chromatogram(filepath, 0.4, 1)
-    chrom.detect_peaks("local")
-    peaks1 = chrom.peaks
-    chrom.detect_peaks("global")
-    peaks2 = chrom.peaks
+    chrom = Chromatogram(filepath)
+    chrom.detect_peaks()
+    peaks = chrom.peaks
     print()
