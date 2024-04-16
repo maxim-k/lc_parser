@@ -1,6 +1,17 @@
 import pandas as pd
 
+
 class Peak:
+    """
+    Represents a chromatographic peak.
+
+    :param left_thresh: The lower threshold for the peak detection.
+    :param right_thresh: The upper threshold for the peak detection.
+    :param height: The height of the peak.
+    :param retention_time: The retention time at which the peak occurs.
+    :param data: A pandas DataFrame containing the data points of the peak.
+    """
+
     def __init__(
         self,
         left_thresh: float,

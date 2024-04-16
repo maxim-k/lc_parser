@@ -10,6 +10,14 @@ from scipy.signal import find_peaks, savgol_filter
 
 
 class Chromatogram:
+    """
+    Handles the processing of chromatogram data from a file.
+
+    :param filepath: The path to the chromatogram data file.
+    :raises ValueError: If the filepath is not a pathlib.Path object.
+    :raises FileNotFoundError: If no file is found at the provided filepath.
+    """
+
     def __init__(self, filepath: Path):
         if not isinstance(filepath, Path):
             raise ValueError("filepath must be a pathlib.Path object")
@@ -33,7 +41,6 @@ class Chromatogram:
         This method reads a text file containing metadata and raw chromatogram data,
         separates the content into metadata and data sections, parses the metadata
         for different categories, and converts the raw data section into a pandas DataFrame.
-        It also initializes the baseline interpolation using the first and last data points.
 
         :param filepath: Path object pointing to the file to be parsed.
         :type filepath: Path
@@ -74,13 +81,34 @@ class Chromatogram:
         except KeyError as e:
             raise ValueError(f"Expected column missing from the data: {e}")
 
-    def detect_peaks(self, poly_degree: int = 3, min_height: float = None, window_length: int = 25):
+    def detect_peaks(
+        self,
+        poly_degree: int = 3,
+        min_height: float = None,
+        prominence: float = 0.1,
+        window_length: int = 25,
+    ):
+        """
+        Detects peaks in the chromatogram data.
+
+        Applies polynomial interpolation for detrending, and a Savitzky-Golay filter to smooth the data. Uses the find_peaks method to identify peaks based on height and other characteristics.
+
+        :param poly_degree: Polynomial degree for the Savitzky-Golay filter.
+        :param min_height: Minimum height required for a peak to be considered.
+        :param window_length: Length of the window for the smoothing filter.
+        :param prominence: Vertical distance from the lowest contour line to the peak, indicating how much it stands out from the signal's baseline.
+        :raises ValueError: If the window size is too large for the dataset or the dataset is too short for effective smoothing.
+        """
         values = self.raw_data["Value (EU)"].to_numpy()
         time = self.raw_data["Time (min)"].to_numpy()
         if len(values) < window_length:
-            raise ValueError("Window size for Savitzky-Golay filter must be less than the length of the dataset")
+            raise ValueError(
+                "Window size for Savitzky-Golay filter must be less than the length of the dataset"
+            )
         if window_length % 2 == 0:
-            raise ValueError("Window size for Savitzky-Golay filter must be must be an odd number")
+            raise ValueError(
+                "Window size for Savitzky-Golay filter must be must be an odd number"
+            )
 
         # Polynomial fit for detrending
         coeffs = np.polyfit(time, values, deg=poly_degree)
@@ -93,25 +121,24 @@ class Chromatogram:
         # Apply Savitzky-Golay filter to smooth the detrended data
         values = savgol_filter(detrended_data, window_length, polyorder=3)
 
+        # If not specified set min height to be more than one standard deviation above the mean
         if min_height is None:
-            # Setting minimum height to be more than one standard deviation above the mean to focus on significant peaks
             mean_emission = values.mean()
             std_emission = values.std()
             min_height = mean_emission + std_emission
 
-        peaks, properties = find_peaks(values, height=min_height, prominence=0.1)
+        peaks, properties = find_peaks(
+            values, height=min_height, prominence=prominence
+        )
 
         for i, peak in enumerate(peaks):
-            # Get peak height
             peak_height = properties["peak_heights"][i]
             retention_time = time[peak]
 
-            # Find the left and right base indices
+            # Find the left and right base indices and slice the data for the peak
             left_base_idx = properties["left_bases"][i]
             right_base_idx = properties["right_bases"][i]
-
-            # Slice the data for the peak
-            peak_data = self.raw_data.iloc[left_base_idx: right_base_idx + 1]
+            peak_data = self.raw_data.iloc[left_base_idx : right_base_idx + 1]
 
             self.peaks.append(
                 Peak(
@@ -123,15 +150,30 @@ class Chromatogram:
                 )
             )
 
-    def calculate_peak_area(self, peak: Peak):
-        # Calculating the area under the curve for the peak data using Simpson's rule
+    def calculate_peak_area(self, peak: Peak) -> float:
+        """
+        Calculates the area under the curve for a given peak using Simpson's rule.
+
+        :param peak: The Peak object for which to calculate the area.
+        :return: The calculated area under the curve.
+        :raises ValueError: If the peak data is empty.
+        """
         if peak.data.empty:
             raise ValueError("Peak data is empty, cannot calculate area.")
-        area = simps(peak.data_slice["Value (EU)"], peak.data_slice["Time (min)"])
+        area = simps(
+            peak.data_slice["Value (EU)"], peak.data_slice["Time (min)"]
+        )
         return area
 
-    def calculate_elution_volume(self, peak: Peak, flow_rate: float):
-        # Calculating elution volume based on the retention time and flow rate
+    def calculate_elution_volume(self, peak: Peak, flow_rate: float) -> float:
+        """
+        Calculates the elution volume for a given peak based on its retention time and the specified flow rate.
+
+        :param peak: The Peak object for which to calculate the elution volume.
+        :param flow_rate: The flow rate used in the experiment, must be a positive number.
+        :return: The calculated elution volume.
+        :raises ValueError: If the flow rate is not a positive number.
+        """
         if flow_rate <= 0:
             raise ValueError("Flow rate must be a positive number.")
         elution_volume = peak.retention_time * flow_rate
@@ -139,7 +181,9 @@ class Chromatogram:
 
 
 if __name__ == "__main__":
-    filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
+    filepath = (
+        Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
+    )
     chrom = Chromatogram(filepath)
     chrom.detect_peaks()
     peaks = chrom.peaks
