@@ -4,7 +4,7 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
-from peak import Peak
+from .peak import Peak
 from scipy.integrate import simpson
 from scipy.signal import find_peaks, savgol_filter
 
@@ -93,7 +93,7 @@ class Chromatogram:
 
         Applies polynomial interpolation for detrending, and a Savitzky-Golay filter to smooth the data. Uses the find_peaks method to identify peaks based on height and other characteristics.
 
-        :param poly_degree: Polynomial degree for the Savitzky-Golay filter.
+        :param poly_degree: Polynomial degree for the interpolation of the baseline.
         :param min_height: Minimum height required for a peak to be considered.
         :param window_length: Length of the window for the smoothing filter.
         :param prominence: Vertical distance from the lowest contour line to the peak, indicating how much it stands out from the signal's baseline.
