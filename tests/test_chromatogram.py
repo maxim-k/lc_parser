@@ -59,7 +59,7 @@ def test_calculate_peak_area():
     filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
     chrom = Chromatogram(filepath)
     area = chrom.calculate_peak_area(peak)
-    assert round(area, 2) == 2.67  # Real area is 2, Simpson's area is 2.(6). What can I do?
+    assert round(area, 2) == 2.67  # Real area is 2, Simpson's area is 2.(6). It's a parabola - what can I do?
 
 
 def test_calculate_elution_volume():

@@ -4,7 +4,7 @@ from typing import Dict
 
 import numpy as np
 import pandas as pd
-from .peak import Peak
+from parser.peak import Peak
 from scipy.integrate import simpson
 from scipy.signal import find_peaks, savgol_filter
 
@@ -85,8 +85,9 @@ class Chromatogram:
         self,
         poly_degree: int = 3,
         min_height: float = None,
-        prominence: float = 0.1,
-        window_length: int = 25,
+        prominence: float = 1,
+        peak_window_length: int = 100,
+        sg_window_length: int = 25,
     ):
         """
         Detects peaks in the chromatogram data.
@@ -95,17 +96,18 @@ class Chromatogram:
 
         :param poly_degree: Polynomial degree for the interpolation of the baseline.
         :param min_height: Minimum height required for a peak to be considered.
-        :param window_length: Length of the window for the smoothing filter.
         :param prominence: Vertical distance from the lowest contour line to the peak, indicating how much it stands out from the signal's baseline.
+        :param peak_window_length: Window length in samples that limits the evaluated area for each peak.
+        :param sg_window_length: Length of the window for the Savitzky-Golay filter.
         :raises ValueError: If the window size is too large for the dataset or the dataset is too short for effective smoothing.
         """
         values = self.raw_data["Value (EU)"].to_numpy()
         time = self.raw_data["Time (min)"].to_numpy()
-        if len(values) < window_length:
+        if len(values) < sg_window_length:
             raise ValueError(
                 "Window size for Savitzky-Golay filter must be less than the length of the dataset"
             )
-        if window_length % 2 == 0:
+        if sg_window_length % 2 == 0:
             raise ValueError(
                 "Window size for Savitzky-Golay filter must be must be an odd number"
             )
@@ -119,7 +121,7 @@ class Chromatogram:
         detrended_data = values - baseline
 
         # Apply Savitzky-Golay filter to smooth the detrended data
-        values = savgol_filter(detrended_data, window_length, polyorder=3)
+        values = savgol_filter(detrended_data, sg_window_length, polyorder=3)
 
         # If not specified set min height to be more than one standard deviation above the mean
         if min_height is None:
@@ -128,7 +130,7 @@ class Chromatogram:
             min_height = mean_emission + std_emission
 
         peaks, properties = find_peaks(
-            values, height=min_height, prominence=prominence
+            values, height=min_height, prominence=prominence, wlen=peak_window_length
         )
 
         for i, peak in enumerate(peaks):
