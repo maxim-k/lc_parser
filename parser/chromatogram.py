@@ -5,7 +5,7 @@ from typing import Dict
 import numpy as np
 import pandas as pd
 from peak import Peak
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from scipy.signal import find_peaks, savgol_filter
 
 
@@ -160,8 +160,8 @@ class Chromatogram:
         """
         if peak.data.empty:
             raise ValueError("Peak data is empty, cannot calculate area.")
-        area = simps(
-            peak.data_slice["Value (EU)"], peak.data_slice["Time (min)"]
+        area = simpson(
+            peak.data["Value (EU)"], peak.data["Time (min)"]
         )
         return area
 
