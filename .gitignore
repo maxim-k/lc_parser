@@ -1,5 +1,6 @@
-__pycache__
-venv
-.pytest_cache
+.DS_Store
 .idea
 .ipynb_checkpoints
+.pytest_cache
+__pycache__
+venv
