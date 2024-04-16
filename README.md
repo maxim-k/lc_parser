@@ -3,6 +3,8 @@
 ## Overview
 This application processes liquid chromatography data, specifically from the [ACQUITY UPLC FLR machine](https://www.waters.com/webassets/cms/support/docs/71500142403rb.pdf). It automates the parsing of metadata, detects peaks, interpolates the baseline, and calculates peak areas and elution volumes.
 
+![Screenshot](screenshot.png)
+
 ## Features
 - **Peak Detection**: Automatically detects peaks in chromatography data.
 - **Baseline Interpolation**: Interpolates the baseline for more accurate peak detection.

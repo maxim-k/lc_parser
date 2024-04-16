@@ -10,7 +10,7 @@ st.set_page_config(layout="wide")
 
 
 def plot_processed_data(data, peaks):
-    fig = px.line(data, x='Time (min)', y='Value (EU)', title='Raw Data')
+    fig = px.line(data, x='Time (min)', y='Value (EU)', title='Peaks')
     # Plotting peaks with the data from Peak instances
     for peak in peaks:
         peak_data = peak.data
@@ -32,9 +32,12 @@ settings, plot = st.columns([1, 2])
 with settings:
     # File selector
     file_selector = st.selectbox('Select a data file:', files)
-    # Sliders for peak detection parameters
+
+    st.caption("Baseline parameters")
     poly_degree = st.slider("Polynomial degree for the baseline correction", min_value=1, max_value=10, value=3, step=1,
                             help="Determines the degree of the polynomial used for the interpolation for the baseline correction.")
+
+    st.caption("Peak detection parameters")
     min_height = st.slider("Minimum height of peaks", min_value=1.0, max_value=25.0, value=0.0, step=0.1,
                            help="Minimum height required to recognize a peak.")
     prominence = st.slider("Prominence of peaks", min_value=2.0, max_value=25.0, value=0.1, step=0.1,
@@ -53,6 +56,5 @@ with plot:
                                   peak_window_length=peak_window_length,
                                   sg_window_length=sg_window_length)
 
-        st.write('### Peaks')
         processed_fig = plot_processed_data(chromatogram.raw_data, chromatogram.peaks)
         st.plotly_chart(processed_fig, use_container_width=True)
