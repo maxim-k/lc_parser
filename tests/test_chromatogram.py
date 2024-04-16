@@ -49,26 +49,28 @@ def test_detect_peaks():
     assert len(chrom.peaks) > 0  # Expecting at least one peak detected
 
 
+def test_get_peaks_df():
+    filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
+    chrom = Chromatogram(filepath)
+    chrom.detect_peaks()
+    assert isinstance(chrom.get_peaks_df(), pd.DataFrame)
+
 def test_calculate_peak_area():
     # Create a simple peak with known area calculation
     data = pd.DataFrame({
         'Time (min)': [1, 2, 3],
         'Value (EU)': [0, 2, 0]
     })
-    peak = Peak(left_thresh=1, right_thresh=3, height=2, retention_time=2, data=data)
-    filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
-    chrom = Chromatogram(filepath)
-    area = chrom.calculate_peak_area(peak)
+    peak = Peak(left_base_idx=0, right_base_idx=2, height=2, retention_time=2, data=data)
+    area = Chromatogram.calculate_peak_area(peak)
     assert round(area, 2) == 2.67  # Real area is 2, Simpson's area is 2.(6). It's a parabola - what can I do?
 
 
 def test_calculate_elution_volume():
-    filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
-    chrom = Chromatogram(filepath)
     data = pd.DataFrame({
         'Time (min)': [0, 1],
         'Value (EU)': [0, 1]
     })
-    peak = Peak(left_thresh=0, right_thresh=1, height=1, retention_time=1, data=data)
-    elution_volume = chrom.calculate_elution_volume(peak, flow_rate=1.0)
+    peak = Peak(left_base_idx=0, right_base_idx=1, height=1, retention_time=1, data=data)
+    elution_volume = Chromatogram.calculate_elution_volume(peak, flow_rate=1.0)
     assert elution_volume == 1  # Elution volume = retention_time * flow_rate

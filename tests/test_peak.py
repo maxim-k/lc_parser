@@ -9,7 +9,7 @@ sample_data = pd.DataFrame({
 
 
 def test_peak_init():
-    peak = Peak(left_thresh=0.0, right_thresh=2.0, height=20, retention_time=1.0, data=sample_data)
+    peak = Peak(left_thresh=0.0, right_base_idx=2.0, height=20, retention_time=1.0, data=sample_data)
     assert peak.left_thresh == 0.0
     assert peak.right_thresh == 2.0
     assert peak.height == 20

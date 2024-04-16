@@ -1,10 +1,10 @@
 from io import StringIO
+from parser.peak import Peak
 from pathlib import Path
 from typing import Dict
 
 import numpy as np
 import pandas as pd
-from parser.peak import Peak
 from scipy.integrate import simpson
 from scipy.signal import find_peaks, savgol_filter
 
@@ -152,7 +152,32 @@ class Chromatogram:
                 )
             )
 
-    def calculate_peak_area(self, peak: Peak) -> float:
+    def get_peaks_df(self) -> pd.DataFrame:
+        """
+        Returns a DataFrame containing information about detected peaks.
+
+        The DataFrame columns include:
+        - Left Base Index
+        - Right Base Index
+        - Peak Height
+        - Retention Time
+        - Peak Area
+
+        :return: A pandas DataFrame with peaks data.
+        """
+        peaks_data = {
+            "Peak Start Measurement Id": [peak.left_base_idx for peak in self.peaks],
+            "Peak End Time Measurement Id": [
+                peak.right_base_idx for peak in self.peaks
+            ],
+            "Peak Height (EU)": [peak.height for peak in self.peaks],
+            "Retention Time (s)": [peak.retention_time for peak in self.peaks],
+            "Peak Area": [self.calculate_peak_area(peak) for peak in self.peaks],
+        }
+        return pd.DataFrame(peaks_data)
+
+    @staticmethod
+    def calculate_peak_area(peak: Peak) -> float:
         """
         Calculates the area under the curve for a given peak using Simpson's rule.
 
@@ -162,12 +187,11 @@ class Chromatogram:
         """
         if peak.data.empty:
             raise ValueError("Peak data is empty, cannot calculate area.")
-        area = simpson(
-            peak.data["Value (EU)"], peak.data["Time (min)"]
-        )
+        area = simpson(y=peak.data["Value (EU)"], x=peak.data["Time (min)"])
         return area
 
-    def calculate_elution_volume(self, peak: Peak, flow_rate: float) -> float:
+    @staticmethod
+    def calculate_elution_volume(peak: Peak, flow_rate: float) -> float:
         """
         Calculates the elution volume for a given peak based on its retention time and the specified flow rate.
 
@@ -183,9 +207,7 @@ class Chromatogram:
 
 
 if __name__ == "__main__":
-    filepath = (
-        Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
-    )
+    filepath = Path(__file__).parent.parent / "data" / "IgG Vtag 1_ACQUITY FLR ChA.txt"
     chrom = Chromatogram(filepath)
     chrom.detect_peaks()
     peaks = chrom.peaks
